@@ -1,2 +1,2 @@
 # Metu
-Finished coursework
+Finished coursework of take home exams. (THE)
