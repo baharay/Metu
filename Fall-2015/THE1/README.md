@@ -1,0 +1,1 @@
+A simple text editor which is capable of inserting and deleting characters, undo previous actions, moving cursor up, down, left and right by using doubly linked list. Implemented linked node, linked list and editor classes. 
