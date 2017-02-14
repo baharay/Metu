@@ -1,0 +1,185 @@
+#/* $begin ncopy-ys */
+##################################################################
+# ncopy.ys - Copy a src block of len words to dst.
+# Return the number of positive words (>0) contained in src.
+#
+# Include your name and ID here.
+# Bahar Aydemir 2035657
+# Describe how and why you modified the baseline code.
+# I have started with implementing the iadd instruction. It gave me the opportunity to combine irmovq # and addq instructions. Lots of cycles gained from this operation.
+# Later, I used loop unrolling by 8. If the length is greater then 8, it loads to 8 different #registers then writes into memory. If there are less than 8 elements, it unrolls by 4. Again when #there are less then 4 elements it unrolls by 2. At last, on odd length for the remaining element #the "Last" label is executed.
+# At start, I check wheteher the length is 1 or 2 manually. Then checking for 8- unrolling. I did not # used 4 unrolling here because I have made some tests and the current code gave better CPE. (The #cost for checking exceeds the actual computation cost.)
+# I used several "ret" instructions in the middle to shortcut.
+# I have changed the order of length checks in order to reduce overall CPE.
+# I tried to reduce cycles lost from data dependencies in mrmovq and rmmovq instructions by #separating them with andq instruction.
+# The CPE is still so high for length less than 8. I have tried to implement a jump table but the #object file exceeded 1000 bytes. Then, i tried to 4-2 unrolling with 4-length jump table but the #current approach gave me better results. 
+# Assuming rax register starts with a value of 0.
+# Average CPE = 8.07
+##################################################################
+# Do not modify this portion
+# Function prologue.
+# %rdi = src, %rsi = dst, %rdx = len
+ncopy:
+
+##################################################################
+# You can modify this portion
+	# Loop header
+#	xorq %rax,%rax		# count = 0;
+	iaddq $-1,%rdx		# len <= 0?
+	je Last		        # if so, goto Done:
+	iaddq $-1,%rdx		# len <= 0?
+	je Loop	        # if so, goto Done:
+	iaddq $-6, %rdx
+	jge Table	
+	iaddq $6, %rdx
+	jle Done
+
+
+Loop:	mrmovq (%rdi), %r10	# read val from src...
+	mrmovq 8(%rdi), %r11	# read val from src...
+	rmmovq %r10, (%rsi)	# ...and store it to dst
+	rmmovq %r11, 8(%rsi)	# ...and store it to dst
+
+	andq %r10, %r10		# val <= 0?
+	jle Loop2		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Loop2:
+	andq %r11, %r11		# val <= 0?
+	jle Npos		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos:	
+	iaddq $16, %rdi		# src++
+	iaddq $16, %rsi		# dst++
+	iaddq $-2, %rdx		# len--
+	jge Loop			# if so, goto Loop:
+	iaddq $1, %rdx
+	jl Done
+
+Last:	
+	mrmovq (%rdi), %r10	# read val from src...
+	andq %r10, %r10		# val <= 0?
+	rmmovq %r10, (%rsi)	# ...and store it to dst
+	jle Done		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+	ret
+
+
+Fourunroll :	mrmovq (%rdi), %rcx	# read val from src...
+		mrmovq 8(%rdi), %rbx	# read val from src...
+		mrmovq 16(%rdi), %rbp	# read val from src...
+		mrmovq 24(%rdi), %r8	# read val from src...
+
+		rmmovq %rcx, (%rsi)	# ...and store it to dst
+		rmmovq %rbx, 8(%rsi)	# ...and store it to dst
+		rmmovq %rbp, 16(%rsi)	# ...and store it to dst
+		rmmovq %r8,  24(%rsi)	# ...and store it to dst
+
+
+Npos110:	andq %rcx, %rcx		# val <= 0?
+	jle Npos21		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos21:	andq %rbx, %rbx		# val <= 0?
+	jle Npos31		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos31:	andq %rbp, %rbp		# val <= 0?
+	jle Npos41		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos41:	andq %r8, %r8		# val <= 0?
+	jle Npos111		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+
+
+Npos111:	
+	iaddq $32, %rdi		# src++
+	iaddq $32, %rsi		# dst++
+	iaddq $-4, %rdx		# len--
+	jge Fourunroll
+	iaddq $2, %rdx
+	jge Loop			# if so, goto Loop:
+	iaddq $1, %rdx
+	jge Last
+	ret
+
+
+
+Table:  mrmovq (%rdi), %rcx	# read val from src...
+	mrmovq 8(%rdi), %rbx	# read val from src...
+	mrmovq 16(%rdi), %rbp	# read val from src...
+	mrmovq 24(%rdi), %r8	# read val from src...
+	mrmovq 32(%rdi), %r9	# read val from src...
+	mrmovq 40(%rdi), %r10	# read val from src...
+	mrmovq 48(%rdi), %r11	# read val from src...
+	mrmovq 56(%rdi), %r12	# read val from src...
+
+	rmmovq %rcx, (%rsi)	# ...and store it to dst
+	rmmovq %rbx, 8(%rsi)	# ...and store it to dst
+	rmmovq %rbp, 16(%rsi)	# ...and store it to dst
+	rmmovq %r8,  24(%rsi)	# ...and store it to dst
+	rmmovq %r9,  32(%rsi)	# ...and store it to dst
+	rmmovq %r10, 40(%rsi)	# ...and store it to dst
+	rmmovq %r11, 48(%rsi)	# ...and store it to dst
+	rmmovq %r12, 56(%rsi)	# ...and store it to dst
+
+
+Npos1:	andq %rcx, %rcx		# val <= 0?
+	jle Npos2		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos2:	andq %rbx, %rbx		# val <= 0?
+	jle Npos3		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos3:	andq %rbp, %rbp		# val <= 0?
+	jle Npos4		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos4:	andq %r8, %r8		# val <= 0?
+	jle Npos5		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos5:	andq %r9, %r9		# val <= 0?
+	jle Npos6		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos6:	andq %r10, %r10		# val <= 0?
+	jle Npos7		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos7:	andq %r11, %r11		# val <= 0?
+	jle Npos8		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos8:	andq %r12, %r12		# val <= 0?
+	jle Npos11		# if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+
+Npos11:	
+	iaddq $64, %rdi		# src++
+	iaddq $64, %rsi		# dst++
+	iaddq $-8, %rdx		# len--
+	jge Table
+
+	#iaddq $4, %rdx
+	#jge Fourunroll			# if so, goto Loop:
+	iaddq $6, %rdx
+	jge Loop			# if so, goto Loop:
+	iaddq $1, %rdx
+	jge Last
+	ret
+
+##################################################################
+# Do not modify the following section of code
+# Function epilogue.
+Done:
+	ret
+##################################################################
+# Keep the following label at the end of your function
+End:
+#/* $end ncopy-ys */
